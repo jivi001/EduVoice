@@ -1,6 +1,39 @@
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _DEFAULT_SECRET = "change-me-in-production"
+
+_VALID_LIBPQ_PARAMS = {
+    "sslmode",
+    "sslrootcert",
+    "sslcert",
+    "sslkey",
+    "sslpassword",
+    "connect_timeout",
+    "application_name",
+    "options",
+    "keepalives",
+    "keepalives_idle",
+    "keepalives_interval",
+    "keepalives_count",
+    "tcp_user_timeout",
+    "gssencmode",
+    "krbsrvname",
+    "target_session_attrs",
+    "channel_binding",
+}
+
+
+def clean_postgres_url(raw_url: str) -> str:
+    """Strip parameters not recognized by libpq/psycopg (e.g. supa, pgbouncer, connection_limit)."""
+    parsed = urlparse(raw_url)
+    if not parsed.query:
+        return raw_url
+    query_params = parse_qs(parsed.query, keep_blank_values=True)
+    filtered = {k: v for k, v in query_params.items() if k.lower() in _VALID_LIBPQ_PARAMS}
+    flattened = {k: v[0] if len(v) == 1 else v for k, v in filtered.items()}
+    new_query = urlencode(flattened, doseq=True)
+    return urlunparse(parsed._replace(query=new_query))
 
 
 class Settings(BaseSettings):
@@ -59,7 +92,8 @@ class Settings(BaseSettings):
         url = url.strip()
         for prefix in ("postgres://", "postgresql://"):
             if url.startswith(prefix):
-                return "postgresql+psycopg://" + url[len(prefix):]
+                cleaned = clean_postgres_url(url)
+                return "postgresql+psycopg://" + cleaned[len(prefix):]
         return url
 
     def check_production(self) -> None:
