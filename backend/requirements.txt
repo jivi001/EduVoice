@@ -5,4 +5,5 @@ pydantic-settings>=2.7,<3
 argon2-cffi>=23.1,<26
 PyJWT>=2.10,<3
 cryptography>=44,<50
+python-multipart>=0.0.20
 # Optional ML (set USE_HF_MODELS=true): transformers, torch. Too large for serverless; use a container host for those.

@@ -1,87 +1,120 @@
-# EduVoice
+# AICTE CaseTrack (SIH26264)
+**Integrated Dashboard for Monitoring and Tracking Institution-Related Complaint Cases Across AICTE Bureaus/Cells**
 
-Anonymous student feedback where the server **cannot** link a feedback record to the student who wrote it.
+Problem Statement ID: **SIH26264**  
+Organization: **All India Council for Technical Education (AICTE)**  
+Category: **Software** | Theme: **Smart Automation**
 
-[![CI](../../actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
+---
 
-- **Backend:** FastAPI, SQLAlchemy, PostgreSQL (SQLite for local development)
-- **Frontend:** Next.js 14, TypeScript
-- **Anonymity:** RSA blind-signature credentials (Chaum), one per student per course
-- **Analysis:** sentiment, toxicity, identifying-information detection and topic counts (word lists by default, Hugging Face models optional)
-- **Admin tools:** create accounts and courses, open or close feedback, moderate flagged comments
-- **Accounts:** students/teachers can self-sign-up with email verification + admin approval, sign in with Google (optional, see docs/DEPLOYMENT.md), or be invited by an admin via email alone (a temporary password is generated and emailed, with a forced change on first login)
+## Overview
 
-To put it online, follow **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** (GitHub, Vercel, Neon).
+AICTE receives grievances and regulatory complaints regarding technical education institutions across multiple internal divisions, including:
+- **Regulation Bureau (RB)**
+- **Public Grievance Redressal Cell (PGRC)**
+- **Approval Bureau (AB)**
 
-## Run it locally
+Previously, fragmented systems resulted in multiple cells handling overlapping cases for the same institution without real-time synchronization, causing redundant inspections, tracking gaps, and conflicting actions.
+
+**AICTE CaseTrack** provides an integrated single-window command dashboard that connects internal divisions, synchronously detects cross-bureau overlaps, enforces strict 5-stage case lifecycle rules, protects high-confidentiality whistleblower complaints, monitors SLA deadlines, and produces bureau/regional MIS reports.
+
+---
+
+## Key Features
+
+1. **Single-Window Command Dashboard:** Consolidated tracking of all technical institution complaints across AICTE Bureaus.
+2. **Deterministic Cross-Bureau Overlap Engine:** Synchronously detects whenever multiple active cases exist for the same AICTE Permanent ID across different bureaus (e.g. RB vs. PGRC). Automatically alerts officers and auto-resolves when qualifying conditions terminate.
+3. **Strict 5-Stage Lifecycle State Machine:**
+   - Active: `Pending`, `Under Process`, `Transferred`, `Escalated`.
+   - Terminal: `Disposed` (direct disposal from Pending is strictly rejected).
+4. **Bureau Transfers & Escalations:** Audited transfers with explicit receiving-bureau acceptance, supervisor escalation queues, and immutable `CaseHistory` trails.
+5. **Cross-Bureau Confidentiality:** Role-aware visibility policy where `HIGH` confidentiality cases expose only Case ID, Institution, and Bureau to other divisions; all private remarks, narratives, and complainant details are redacted at the API layer.
+6. **CSV Ingestion & Registry Protection:** Batch uploads (capped at 200 rows) with authoritative Permanent ID matching, duplicate external record idempotency, and review queue (`ImportIssue`).
+7. **SLA Deadlines & Testable Clock:** Deterministic calendar-day SLA calculations, approaching-deadline warnings, overdue breach detection, and an injectable time machine for demonstration.
+8. **MIS Analytics & Safe CSV Export:** Workload, regional, and ageing distributions with spreadsheet formula-injection prevention (`=`, `+`, `-`, `@` neutralized).
+
+---
+
+## Tech Stack
+
+- **Backend:** FastAPI, SQLAlchemy 2.0, Pydantic, Python 3.11+ (SQLite dev / PostgreSQL prod)
+- **Frontend:** Next.js 14 (App Router), TypeScript, Tailwind CSS design system
+- **Security:** Argon2id password hashing, HttpOnly session cookies, role & bureau-scope authorization, formula-safe CSV export
+- **Testing:** Pytest, Starlette TestClient (33 automated integration tests)
+
+---
+
+## Local Setup & Quick Start
+
+### 1. Backend (FastAPI)
 
 ```bash
-# Backend  (http://localhost:8000, docs at /docs)
 cd backend
-python -m venv .venv && source .venv/bin/activate
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements-dev.txt
-cp .env.example .env
-python -m app.seed            # demo users and courses (development only)
-uvicorn app.main:app --reload
 
-# Frontend  (http://localhost:3000)
+# Run idempotent development seed (Institutions, Bureaus, Demo cases, SLA rules)
+python -m app.seed
+
+# Start backend server (http://localhost:8000, docs at /docs)
+uvicorn app.main:app --reload --port 8000
+```
+
+### 2. Frontend (Next.js)
+
+```bash
 cd frontend
-cp .env.example .env.local    # optional: add NEXT_PUBLIC_SHOW_DEMO=true to show demo logins
 npm install
 npm run dev
+# Open http://localhost:3000
 ```
 
-Demo logins: `s01`..`s08` / `student123`, `kumar` / `teacher123`, `admin` / `admin123`.
-Run the tests with `cd backend && pytest`.
+---
 
-## How the anonymity works
+## Development Logins (Pre-Seeded)
 
-```
-Browser                                   Server
-  │  nonce = random()                       │
-  │  blinded = blind(H("course:nonce"))     │
-  │ ──── POST /credentials/issue ─────────► │  checks session, enrolment, not issued before
-  │      (logged in, blinded value only)    │  signs the blinded value; records "student X got one"
-  │ ◄──────────── blind signature ───────── │
-  │  signature = unblind(...)               │
-  │                                         │
-  │ ──── POST /feedback (NO cookie) ──────► │  verifies signature, marks nonce spent,
-  │      nonce + signature + answers        │  stores feedback with no student reference
-```
+| Role | Username | Password | Permitted Scope |
+| :--- | :--- | :--- | :--- |
+| **Central Administrator** | `admin` | `admin123` | Global system-wide access across all bureaus & settings |
+| **PGRC Bureau Officer** | `officer_pgrc` | `officer123` | Public Grievance Redressal Cell cases |
+| **Regulation Bureau Officer**| `officer_rb` | `officer123` | Regulation Bureau cases |
+| **Approval Bureau Officer** | `officer_ab` | `officer123` | Approval Bureau cases |
+| **RB Supervisor** | `supervisor_rb` | `super123` | Regulation Bureau supervisor & Northern Region |
+| **Compliance Auditor** | `auditor` | `auditor123` | Read-only compliance auditor |
 
-The server sees the *blinded* value when it signs and the *unblinded* credential at submission, and cannot
-connect the two. The `feedback` and `spent_tokens` tables hold no user reference, and `issuances` records who
-received a credential but never which one.
+*Quick 1-click login buttons are also available directly on the login landing page.*
 
-Other protections:
-- Teachers see nothing until a course has 5 responses, and comments only at 10, in random order.
-- Only the date is stored, not a precise timestamp.
-- Comments with abusive language or identifying details (emails, phone numbers, register numbers) stay hidden until an admin approves them.
-- Passwords are hashed with Argon2, sessions are HttpOnly cookies, accounts lock for 15 minutes after 5 failed sign-ins, and inputs are validated.
-- In production the app refuses to start with weak secrets or a missing signing key.
+---
 
-## Layout
+## Running Automated Verification Tests
 
-```
-backend/app/blind.py        blind-signature maths (mirrored in frontend/lib/blind.ts)
-backend/app/models.py       schema, with the identity/feedback separation documented
-backend/app/routers/        auth, credentials, student, feedback (anonymous), teacher, admin
-backend/app/bootstrap.py    genkey / init commands for first-time production setup
-backend/app/ml.py           sentiment, toxicity, PII, topics
-backend/index.py            Vercel entrypoint
-frontend/lib/blind.ts       browser-side blinding (BigInt + Web Crypto)
-frontend/app/               login, student form, teacher dashboard, admin, account
-docs/                       DEPLOYMENT.md and THREAT_MODEL.md
+Execute the 33-test comprehensive verification suite covering all SIH26264 criteria:
+
+```bash
+cd backend
+.venv/bin/pytest tests
 ```
 
-## Known limits
+To run frontend TypeScript type checking and production build:
 
-- **Lost credential means no feedback.** It lives in the browser's localStorage. A reset feature would let an admin weaken the one-per-student guarantee, so there isn't one.
-- **Network metadata.** IP addresses and timing can still link the two requests. See the deployment checklist.
-- **Educational crypto.** Full-domain-hash RSA blinding. For high-stakes use, move to RFC 9474 (RSABSSA) with a vetted library and keep the key in a KMS.
-- **No email or SSO.** Accounts are created by the admin; connect your college's student records if you need more.
-- **ML is basic.** Replace `backend/app/ml.py` with a model you train and evaluate, especially for code-mixed (Tanglish) comments.
+```bash
+cd frontend
+npm run typecheck
+npm run build
+```
 
-## License
+---
 
-MIT
+## End-to-End Judge Demonstration Sequence
+
+Demonstrate the full lifecycle and smart automation to hackathon evaluators in 5 minutes:
+
+1. **Sign in as `admin`:** View the **Single-Window Dashboard** with live metrics, overdue indicators, and active cross-bureau overlap banners.
+2. **Inspect Institution 360° Profile:** Navigate to **Institutions**, select `1-10928374` (Apex Institute of Technology), and review its concurrent complaints across PGRC and Regulation Bureau.
+3. **Inspect Active Overlap Alert:** Navigate to **Overlaps** to see the deterministic alert generated between `AICTE/2026/000001` (PGRC) and `AICTE/2026/000002` (RB).
+4. **Verify Confidentiality Filtering:** Sign in as `officer_pgrc` and view the high-confidentiality whistleblower case `AICTE/2026/000003` in Regulation Bureau. Notice that category, narrative, complainant, and restricted remarks are masked at the API layer.
+5. **Transfer & Acceptance:** Sign back in as `admin`, transfer the RB case to **Approval Bureau (AB)** with an official reason. Sign in as `officer_ab` to observe the pending transfer notification and click **Accept Transfer** to transition the case to `Under Process`.
+6. **Demonstrate SLA Time Machine:** Use the top bar's `+30d` button to advance simulated time. Refresh the dashboard to witness active cases dynamically transition to `OVERDUE` (red badge).
+7. **Dispose & Auto-Resolve Overlap:** From a case detail view, click **Dispose Case** with a resolution summary. Return to **Overlaps** to verify the paired overlap alert automatically transitions to `RESOLVED` with recorded audit notes.
+8. **Export Safe CSV:** Navigate to **MIS Reports** to inspect bureau workload, disposal rates, and regional charts, then click **Export Safe CSV Report** to verify formula injection sanitization.

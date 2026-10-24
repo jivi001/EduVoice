@@ -74,7 +74,15 @@ def logout(response: Response):
 
 @router.get("/me")
 def me(user: User = Depends(get_current_user)):
-    return {"name": user.name, "role": user.role, "must_change_password": user.must_change_password}
+    return {
+        "id": user.id,
+        "name": user.name,
+        "username": user.username,
+        "role": user.role,
+        "bureaus": [{"id": a.bureau.id, "code": a.bureau.code, "name": a.bureau.name} for a in user.bureau_assignments if a.bureau],
+        "regions": [a.region for a in user.region_assignments],
+        "must_change_password": user.must_change_password,
+    }
 
 
 class ChangePasswordIn(BaseModel):
