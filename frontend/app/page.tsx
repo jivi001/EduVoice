@@ -102,8 +102,14 @@ function LoginForm() {
           {busy ? "Signing in…" : "Sign In"}
         </button>
 
+        <div style={{ textAlign: "center", marginTop: "0.8rem", fontSize: "0.85rem" }}>
+          <a href="/signup" style={{ color: "var(--stamp)", fontWeight: 600, textDecoration: "none" }}>
+            New student or faculty? Create an account &rarr;
+          </a>
+        </div>
+
         {/* 1-Click Demo Logins for Evaluators */}
-        <div style={{ marginTop: "1.5rem", borderTop: "1px solid var(--line)", paddingTop: "1rem" }}>
+        <div style={{ marginTop: "1.2rem", borderTop: "1px solid var(--line)", paddingTop: "1rem" }}>
           <span className="muted" style={{ fontSize: "0.8rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.6rem" }}>
             1-Click Demo Accounts (SIH Evaluators):
           </span>
@@ -115,6 +121,14 @@ function LoginForm() {
               onClick={() => { setUsername("admin"); setPassword("admin123"); performLogin("admin", "admin123"); }}
             >
               👑 Central Admin
+            </button>
+            <button
+              type="button"
+              className="btn quiet"
+              style={{ fontSize: "0.78rem", padding: "0.4rem", justifyContent: "center" }}
+              onClick={() => { setUsername("s01"); setPassword("student123"); performLogin("s01", "student123"); }}
+            >
+              🎓 Student Demo (s01)
             </button>
             <button
               type="button"

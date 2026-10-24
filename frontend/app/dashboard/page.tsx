@@ -72,7 +72,7 @@ export default function DashboardPage() {
 
     // 3. Load Cases
     const params = new URLSearchParams();
-    if (search.trim()) params.append("case_id", search.trim());
+    if (search.trim()) params.append("search", search.trim());
     if (selectedBureau) params.append("bureau_id", selectedBureau);
     if (selectedStatus) params.append("status", selectedStatus);
     if (selectedRegion) params.append("region", selectedRegion);

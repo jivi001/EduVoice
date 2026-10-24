@@ -94,6 +94,7 @@ class AssignIn(BaseModel):
 
 @router.get("")
 def list_cases(
+    search: str | None = Query(None),
     permanent_id: str | None = Query(None),
     institution_id: int | None = Query(None),
     case_id: str | None = Query(None),
@@ -124,6 +125,9 @@ def list_cases(
         query = query.filter(ComplaintCase.current_bureau_id == bureau_id)
 
     # Filters
+    if search:
+        s = f"%{search.strip()}%"
+        query = query.filter(or_(ComplaintCase.case_id.ilike(s), Institution.permanent_id.ilike(s), Institution.name.ilike(s)))
     if permanent_id:
         query = query.filter(Institution.permanent_id.ilike(f"%{permanent_id.strip()}%"))
     if institution_id:
