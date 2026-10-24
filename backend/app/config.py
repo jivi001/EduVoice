@@ -8,6 +8,9 @@ class Settings(BaseSettings):
 
     environment: str = "development"  # "production" turns on strict checks
     database_url: str = "sqlite:///./eduvoice.db"
+    # Auto-detected from Vercel Supabase integration
+    postgres_url: str = ""
+    postgres_prisma_url: str = ""
     jwt_secret: str = _DEFAULT_SECRET
     jwt_expire_minutes: int = 60
     cookie_secure: bool = False
@@ -49,8 +52,11 @@ class Settings(BaseSettings):
 
     @property
     def sqlalchemy_url(self) -> str:
-        """Accepts the postgres:// and postgresql:// URLs that Neon/Supabase/Render hand out."""
-        url = self.database_url.strip() or "sqlite:///./eduvoice.db"  # an empty variable means "not set"
+        """Accepts database_url, postgres_url, or postgres_prisma_url from Neon/Supabase Vercel Integration."""
+        url = self.database_url
+        if not url or url == "sqlite:///./eduvoice.db":
+            url = self.postgres_url or self.postgres_prisma_url or "sqlite:///./eduvoice.db"
+        url = url.strip()
         for prefix in ("postgres://", "postgresql://"):
             if url.startswith(prefix):
                 return "postgresql+psycopg://" + url[len(prefix):]
@@ -63,7 +69,7 @@ class Settings(BaseSettings):
         if not self.signing_key_pem_b64:
             problems.append("SIGNING_KEY_PEM_B64 must be set (run: python -m app.bootstrap genkey)")
         if self.sqlalchemy_url.startswith("sqlite"):
-            problems.append("DATABASE_URL must point to PostgreSQL (SQLite is not persistent on serverless hosts)")
+            problems.append("DATABASE_URL or POSTGRES_URL must point to PostgreSQL (SQLite is not persistent on serverless hosts)")
         if not self.cookie_secure:
             problems.append("COOKIE_SECURE must be true")
         if problems:
