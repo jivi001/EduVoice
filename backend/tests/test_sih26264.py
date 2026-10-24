@@ -563,6 +563,38 @@ def test_dashboard_metrics_and_scope(client: TestClient):
     assert m_pgrc["total_registered"] <= m_admin["total_registered"]
 
 
+def test_student_direct_complaint_submission(client: TestClient):
+    """Verifies student can directly lodge a grievance and track it."""
+    login_as(client, "s01", "student123")
+
+    # List complaints initially
+    r_init = client.get("/student/complaints")
+    assert r_init.status_code == 200
+
+    # Submit new complaint
+    r_sub = client.post(
+        "/student/complaints",
+        json={
+            "permanent_id": "1-10928374",
+            "category": "Fee Refund",
+            "subject": "Caution deposit not returned upon graduation",
+            "description": "Graduated in 2026, college administration refusing to refund caution deposit.",
+            "confidentiality_level": "ORDINARY",
+            "phone": "+919876543210",
+        },
+    )
+    assert r_sub.status_code == 201
+    data = r_sub.json()
+    assert data["case_id"].startswith("AICTE/2026/")
+    assert data["status"] == "Pending"
+
+    # Verify complaint shows up in student's tracking list
+    r_list = client.get("/student/complaints")
+    assert r_list.status_code == 200
+    my_cases = r_list.json()
+    assert any(c["case_id"] == data["case_id"] for c in my_cases)
+
+
 # ==============================================================================
 # 9. Complete Judge Demonstration Scenario (Section 15 End-to-End)
 # ==============================================================================
