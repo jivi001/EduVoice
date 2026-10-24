@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from .config import settings
@@ -21,14 +22,31 @@ from .routers import (
     teacher,
 )
 
-if settings.is_production:
-    settings.check_production()  # refuse to start with unsafe settings
-else:
-    Base.metadata.create_all(engine)  # convenience for local dev; production uses `bootstrap init`
+_config_error: str | None = None
+
+try:
+    if settings.is_production:
+        settings.check_production()
+    else:
+        try:
+            Base.metadata.create_all(engine)
+        except Exception as _e:
+            # Handle read-only filesystems in serverless preview environments
+            pass
+except Exception as _exc:
+    _config_error = str(_exc)
 
 
 class SecurityHeaders(BaseHTTPMiddleware):
-    async def dispatch(self, request, call_next):
+    async def dispatch(self, request: Request, call_next):
+        if _config_error and request.url.path not in ("/health", "/docs", "/openapi.json"):
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "detail": "Backend configuration error",
+                    "error": _config_error,
+                },
+            )
         resp = await call_next(request)
         resp.headers["X-Content-Type-Options"] = "nosniff"
         resp.headers["X-Frame-Options"] = "DENY"
@@ -75,4 +93,13 @@ for r in (
 
 @app.get("/health")
 def health():
+    if _config_error:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "misconfigured",
+                "error": _config_error,
+                "hint": "Ensure production environment variables (DATABASE_URL, JWT_SECRET, SIGNING_KEY_PEM_B64, COOKIE_SECURE) are set in Vercel project settings.",
+            },
+        )
     return {"status": "ok"}
