@@ -78,6 +78,7 @@ app = FastAPI(
     docs_url=None if settings.is_production else "/docs",
     redoc_url=None,
     openapi_url=None if settings.is_production else "/openapi.json",
+    redirect_slashes=False,
 )
 app.add_middleware(PathPrefixMiddleware)
 app.add_middleware(SecurityHeaders)
