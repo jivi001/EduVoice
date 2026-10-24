@@ -1,177 +1,121 @@
-# Deploying EduVoice (GitHub + Vercel + Neon)
+# Deploying EduVoice (GitHub + Vercel + Supabase)
 
-EduVoice is two apps in one repository, so you create **two Vercel projects** from the same GitHub repo,
-plus a free PostgreSQL database. Total cost: free tiers.
+EduVoice is architected as two applications in a single monorepo deployed to **Vercel** with a managed **Supabase PostgreSQL** database.
 
 ```
-Browser ──► Vercel project 1: frontend (Next.js)
-                 │  /api/*  is proxied to
+Browser ──► Vercel Project 1: Frontend (Next.js)
+                 │  /api/* is proxied via rewrites to
                  ▼
-            Vercel project 2: backend (FastAPI) ──► Neon PostgreSQL
+            Vercel Project 2: Backend (FastAPI ASGI) ──► Supabase PostgreSQL (Project hjowkdcdrrzedamodluq)
 ```
 
-The frontend proxies `/api/*` to the backend, so the login cookie belongs to one domain.
+Target Vercel Domains:
+- **Frontend**: `https://eduvoice-frontend.vercel.app/`
+- **Backend**: `https://eduvoice-backend.vercel.app/`
 
-## 0. Push to GitHub
+---
 
-```bash
-cd eduvoice
-git init
-git add .
-git commit -m "Initial commit"
-git branch -M main
-git remote add origin https://github.com/<you>/eduvoice.git
-git push -u origin main
-```
+## 1. Supabase Database Configuration
 
-Check `git status` first: no `.env`, `.pem` or `.db` files should be listed (`.gitignore` covers them).
+The database schema and initial seed data for EduVoice have already been provisioned via Supabase MCP on project `hjowkdcdrrzedamodluq`:
+- **Project Ref**: `hjowkdcdrrzedamodluq`
+- **Supabase URL**: `https://hjowkdcdrrzedamodluq.supabase.co`
+- **Tables Provisioned**: 23 core relational tables (`complaint_cases`, `case_histories`, `case_relationships`, `institutions`, `bureaus`, `users`, `notifications`, `sla_configs`, etc.).
 
-## 1. Create the database (Neon)
+### Connection String Options
+In your Supabase project dashboard (**Settings → Database → Connection string**):
+- **Transaction Pooler (Supavisor - Port 6543, recommended for Vercel Serverless)**:
+  ```
+  postgresql://postgres.[project-ref]:[DB-PASSWORD]@aws-0-[region].pooler.supabase.com:6543/postgres?sslmode=require
+  ```
+- **Direct Connection (Port 5432)**:
+  ```
+  postgresql://postgres:[DB-PASSWORD]@db.hjowkdcdrrzedamodluq.supabase.co:5432/postgres?sslmode=require
+  ```
 
-1. Sign up at neon.tech and create a project.
-2. Copy the connection string (it looks like `postgresql://user:pass@ep-xxx.neon.tech/db?sslmode=require`).
-   Use the **pooled** one if offered.
+> [!NOTE]
+> EduVoice's database engine in `backend/app/db.py` is configured with `poolclass=NullPool` and `prepare_threshold=None`, making it natively compatible with Supabase's Supavisor transaction pooler on port 6543.
+> Additionally, `backend/app/config.py` automatically detects `POSTGRES_URL` or `POSTGRES_PRISMA_URL` injected by the Vercel-Supabase integration.
 
-## 2. Generate your secrets (on your computer)
+---
 
-```bash
-cd backend
-python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+## 2. Deploy the Backend (Vercel Project: eduvoice-backend)
 
-python -c "import secrets; print(secrets.token_urlsafe(48))"   # -> JWT_SECRET
-python -m app.bootstrap genkey                                  # -> SIGNING_KEY_PEM_B64
-```
+1. Open your [Vercel Dashboard](https://vercel.com/dashboard) and click **Add New → Project**.
+2. Select your repository: `jivi001/EduVoice`.
+3. Configure the project:
+   - **Project Name**: `eduvoice-backend` (will deploy to `https://eduvoice-backend.vercel.app`)
+   - **Framework Preset**: Other
+   - **Root Directory**: Click "Edit" and choose `backend`
+4. Set **Environment Variables**:
 
-Keep both somewhere safe (a password manager). **The signing key must never change** once students have
-credentials, or their unused credentials stop working.
+| Variable | Value | Description |
+|---|---|---|
+| `ENVIRONMENT` | `production` | Enables production security checks |
+| `DATABASE_URL` | `postgresql://postgres.[project-ref]:[pass]@aws-0-[region].pooler.supabase.com:6543/postgres?sslmode=require` | Supabase Transaction Pooler URL (or link Supabase Integration for auto `POSTGRES_URL`) |
+| `JWT_SECRET` | *(64-char random string)* | Run `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
+| `SIGNING_KEY_PEM_B64` | *(Base64 Ed25519 key)* | Run `python -m app.bootstrap genkey` in `backend/` |
+| `COOKIE_SECURE` | `true` | Required for HTTPS cookies in production |
+| `FRONTEND_ORIGIN` | `https://eduvoice-frontend.vercel.app` | Allow frontend origin for CORS and session cookies |
+| `AICTE_CROSS_BUREAU_ENABLED` | `true` | Enables AICTE cross-bureau overlap detection & tracking |
+| `AICTE_SLA_DAYS_DEFAULT` | `30` | Default SLA disposal window |
 
-## 3. Create the tables and the first admin
+5. Click **Deploy**.
+6. Verify deployment by checking:
+   ```bash
+   curl https://eduvoice-backend.vercel.app/health
+   # Expected response: {"status":"ok"}
+   ```
 
-Still in `backend/`, pointing at your Neon database:
+> [!TIP]
+> If Vercel prompts with "Authentication Required" when visiting `/health`, go to **Settings → Deployment Protection** in the Vercel project and toggle it **Off** or allow public traffic.
 
-```bash
-# macOS / Linux
-DATABASE_URL="postgresql://...neon.tech/db?sslmode=require" ADMIN_USERNAME=admin python -m app.bootstrap init
-# Windows PowerShell
-$env:DATABASE_URL="postgresql://...neon.tech/db?sslmode=require"; $env:ADMIN_USERNAME="admin"; python -m app.bootstrap init
-```
+---
 
-It asks for the admin password (12+ characters).
+## 3. Deploy the Frontend (Vercel Project: eduvoice-frontend)
 
-## 4. Deploy the backend (Vercel project 1)
+1. In the Vercel Dashboard, click **Add New → Project**.
+2. Select the same repository: `jivi001/EduVoice`.
+3. Configure the project:
+   - **Project Name**: `eduvoice-frontend` (will deploy to `https://eduvoice-frontend.vercel.app`)
+   - **Framework Preset**: Next.js
+   - **Root Directory**: Click "Edit" and choose `frontend`
+4. Set **Environment Variables**:
 
-1. Vercel dashboard, **Add New, Project**, import your GitHub repo.
-2. **Root Directory:** `backend`. Vercel detects FastAPI from `requirements.txt` and `index.py`.
-3. Environment variables:
+| Variable | Value | Description |
+|---|---|---|
+| `BACKEND_URL` | `https://eduvoice-backend.vercel.app` | Backend target for `/api/*` rewrite proxies |
+| `NEXT_PUBLIC_APP_NAME` | `EduVoice` | System branding |
 
-| Name | Value |
-|---|---|
-| `ENVIRONMENT` | `production` |
-| `DATABASE_URL` | your Neon connection string |
-| `JWT_SECRET` | from step 2 |
-| `SIGNING_KEY_PEM_B64` | from step 2 |
-| `COOKIE_SECURE` | `true` |
-| `FRONTEND_ORIGIN` | leave as `https://placeholder.vercel.app` for now, fix in step 6 |
-| `SMTP_HOST` | `smtp.gmail.com` (optional — see "Email" below) |
-| `SMTP_PORT` | `465` |
-| `SMTP_USER` | your Gmail address |
-| `SMTP_PASSWORD` | a Gmail **App Password**, not your real password |
-| `MAIL_FROM` | `EduVoice <your@gmail.com>` |
+5. Click **Deploy**.
+6. Open `https://eduvoice-frontend.vercel.app/` in your browser. All API requests made to `/api/*` will automatically proxy to `https://eduvoice-backend.vercel.app/` while maintaining same-site secure cookie isolation.
 
-4. Deploy, then open `https://<backend>.vercel.app/health`. You should see `{"status":"ok"}`.
-   If you see a Vercel login page instead, turn off **Deployment Protection** for this project
-   (Settings, Deployment Protection).
+---
 
-If the backend refuses to start, the deployment log lists exactly which setting is unsafe or missing.
+## 4. Supabase Vercel Integration (Alternative / One-Click Linking)
 
-## 5. Deploy the frontend (Vercel project 2)
+If you prefer using Vercel's native Supabase integration:
+1. In the `eduvoice-backend` project on Vercel, navigate to the **Integrations** tab.
+2. Search for **Supabase** and click **Add Integration**.
+3. Select your Supabase project: `hjowkdcdrrzedamodluq`.
+4. Vercel will automatically inject `POSTGRES_URL`, `POSTGRES_PRISMA_URL`, and `POSTGRES_URL_NON_POOLING`.
+5. EduVoice automatically parses these environment variables without requiring any code modifications.
 
-1. **Add New, Project**, import the same repo.
-2. **Root Directory:** `frontend` (framework: Next.js).
-3. Environment variable: `BACKEND_URL` = `https://<backend>.vercel.app` (no trailing slash).
-4. Deploy and note the URL, for example `https://eduvoice.vercel.app`.
+---
 
-## 6. Connect them
+## 5. Seed Accounts & Default Credentials
 
-In the backend project set `FRONTEND_ORIGIN` to the frontend URL and **redeploy** the backend
-(Deployments, the three dots, Redeploy).
+The Supabase database has been seeded with standard AICTE demonstration roles for evaluation:
 
-## 7. First use
+| Role | Username | Initial Password | Bureau / Jurisdiction |
+|---|---|---|---|
+| **Central Admin** | `admin` | `Admin@123456` | All Bureaus / National |
+| **PGRC Officer** | `officer_pgrc` | `Officer@123456` | Public Grievance Redressal Cell (PGRC) |
+| **Approval Bureau Officer** | `officer_ab` | `Officer@123456` | Approval Bureau (AB) |
+| **Regional Officer** | `officer_rb` | `Officer@123456` | Regional Bureau (RB) |
+| **Regional Supervisor** | `supervisor_rb` | `Supervisor@123456` | Regional Bureau (RB - Northern Region) |
+| **Read-Only Auditor** | `auditor` | `Auditor@123456` | Read-only oversight |
+| **Student** | `student_01` | `Student@123456` | Anonymous feedback & complaint portal |
 
-1. Sign in as the admin, then **Add accounts** for teachers, then for students.
-2. **Add a course** (teacher username, semester, which students).
-3. Students sign in and give feedback. Teachers see results once 5 students have responded.
-
-## Updating
-
-Push to `main`. Vercel redeploys both projects. The tests and build run in GitHub Actions on every push.
-
-## Production checklist
-
-- [ ] `ENVIRONMENT=production`, `COOKIE_SECURE=true`, strong `JWT_SECRET`, and the signing key stored only in Vercel
-- [ ] Demo data was never loaded (`python -m app.seed` refuses to run in production)
-- [ ] `NEXT_PUBLIC_SHOW_DEMO` is not set
-- [ ] In Vercel, add a rate-limit rule (Firewall) for `/api/feedback` and `/api/auth/login`. The built-in limiter is per instance
-- [ ] Do not enable extra request logging that records client IPs on `/api/feedback` and `/api/credentials/issue`
-- [ ] Tell students how anonymity works and what it cannot hide (see `docs/THREAT_MODEL.md`)
-- [ ] Get permission from your institution before using it with real students; treat responses as personal data
-
-## Email (self-signup verification and admin-invite messages)
-
-Self-signup and the admin's email-only account shortcut both send mail. Without `SMTP_HOST` set, the
-app logs the email instead of sending it — fine for testing, not for real use.
-
-To send real mail with a Gmail account (free, works immediately, no domain verification needed):
-
-1. Turn on **2-Step Verification** on the Gmail account: myaccount.google.com/security.
-2. Create an **App Password**: myaccount.google.com/apppasswords → choose "Mail" → generate. Copy the
-   16-character password it gives you.
-3. Set `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465`, `SMTP_USER=<that gmail address>`,
-   `SMTP_PASSWORD=<the app password, no spaces>`, `MAIL_FROM=EduVoice <that gmail address>`.
-
-Gmail's free sending limit is about 500 emails/day, which is plenty for a college course. If you later
-get a verified college domain, you can switch to a dedicated sender like Resend for better deliverability —
-only `backend/app/mail.py` would need to change.
-
-Optional: set `ALLOWED_EMAIL_DOMAINS` (e.g. `vcet.ac.in`) to restrict self-signup to your college's email
-domain. Leave it empty to allow any domain — admin approval is still required either way.
-
-## Google sign-in (optional)
-
-Lets students and teachers sign up and sign in with their Google account — no password, and
-Google has already verified the email, so there's no verification link step. They still need
-your approval the first time, same as manual signup.
-
-1. Go to [console.cloud.google.com](https://console.cloud.google.com) → create a project (or use
-   an existing one).
-2. **APIs & Services → OAuth consent screen**: choose **External**, fill in an app name and your
-   email, add the `.../auth/userinfo.email` and `.../auth/userinfo.profile` scopes, and publish it
-   (or add your testers' emails if you'd rather keep it in testing mode while you try it out).
-3. **APIs & Services → Credentials → Create credentials → OAuth client ID** → Application type
-   **Web application**.
-4. Under **Authorized redirect URIs**, add your backend's callback URL exactly:
-   `https://<your-backend>.vercel.app/auth/google/callback`
-5. Copy the **Client ID** and **Client secret** it gives you.
-6. In the **backend** Vercel project, add:
-
-| Name | Value |
-|---|---|
-| `GOOGLE_CLIENT_ID` | the client ID |
-| `GOOGLE_CLIENT_SECRET` | the client secret |
-| `GOOGLE_REDIRECT_URI` | `https://<your-backend>.vercel.app/auth/google/callback` (must match step 4 exactly) |
-
-7. In the **frontend** Vercel project, add `NEXT_PUBLIC_BACKEND_URL` set to your backend's URL
-   (the same value as `BACKEND_URL`). The Google button links to the backend directly, bypassing
-   the usual `/api` proxy — this is required so the one-time sign-in cookie lands on the right domain.
-8. Redeploy both projects.
-
-The buttons hide themselves automatically if these variables aren't set, so this is entirely
-optional and the rest of the app works the same without it.
-
-## Other hosts
-
-The backend is a standard ASGI app, so it also runs on Render, Railway or Fly.io:
-`pip install -r requirements.txt && uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
-Set the same environment variables. Use a container host if you want the optional Hugging Face models,
-which are too large for serverless functions.
+> [!IMPORTANT]
+> When transitioning to full production, rotate default passwords and update `ADMIN_PASSWORD` via `python -m app.bootstrap init` or through the EduVoice Admin panel.
