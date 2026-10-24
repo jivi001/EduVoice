@@ -105,7 +105,7 @@ export default function Shell({
     return (
       <>
         <header className="bar">
-          <a className="brand" href="/"><Mark size={24} /> AICTE CaseTrack</a>
+          <a className="brand" href="/"><Mark size={24} /> EduVoice</a>
         </header>
         <main className="page"><p className="muted">Loading workspace…</p></main>
       </>
@@ -129,7 +129,7 @@ export default function Shell({
         <div style={{ display: "flex", alignItems: "center", gap: "1.2rem" }}>
           <a className="brand" href="/dashboard" style={{ textDecoration: "none" }}>
             <Mark size={24} />
-            <span style={{ fontWeight: 700, letterSpacing: "-0.02em" }}>AICTE CaseTrack</span>
+            <span style={{ fontWeight: 700, letterSpacing: "-0.02em" }}>EduVoice</span>
             <span style={{ fontSize: "0.75rem", background: "var(--stamp-soft)", color: "var(--stamp-deep)", padding: "2px 8px", borderRadius: "12px", fontWeight: 600 }}>
               SIH26264
             </span>

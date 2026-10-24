@@ -47,7 +47,7 @@ function LoginForm() {
       <section>
         <div className="hero-mark"><Mark size={48} /></div>
         <h1 style={{ fontSize: "2.4rem", fontWeight: 700, lineHeight: 1.15 }}>
-          AICTE Integrated Case Monitoring Dashboard
+          EduVoice: Integrated Complaint Dashboard
         </h1>
         <p className="lede" style={{ fontSize: "1.05rem", color: "var(--ink-soft)", margin: "0.8rem 0 1.5rem" }}>
           Smart India Hackathon <strong>SIH26264</strong> &bull; Unified cross-bureau tracking and automated overlap detection across Regulation Bureau (RB), Public Grievance Redressal Cell (PGRC), and Approval Bureau (AB).

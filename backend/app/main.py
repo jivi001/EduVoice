@@ -40,7 +40,7 @@ class SecurityHeaders(BaseHTTPMiddleware):
 
 
 app = FastAPI(
-    title="AICTE Grievance & Case Monitoring API (SIH26264)",
+    title="EduVoice API (SIH26264)",
     docs_url=None if settings.is_production else "/docs",
     redoc_url=None,
     openapi_url=None if settings.is_production else "/openapi.json",

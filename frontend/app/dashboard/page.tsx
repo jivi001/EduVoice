@@ -129,7 +129,7 @@ export default function DashboardPage() {
           {/* Header Title & Actions */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.2rem" }}>
             <div>
-              <h1 style={{ fontSize: "1.8rem", margin: 0, fontWeight: 700 }}>Integrated AICTE Cases Dashboard</h1>
+              <h1 style={{ fontSize: "1.8rem", margin: 0, fontWeight: 700 }}>EduVoice: Integrated Complaint Dashboard</h1>
               <p className="muted" style={{ margin: "0.2rem 0 0 0", fontSize: "0.95rem" }}>
                 Consolidated cross-bureau monitoring, duplicate detection, and SLA oversight across Regulation, PGRC, and Approval Bureaus.
               </p>

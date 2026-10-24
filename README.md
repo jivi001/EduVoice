@@ -1,4 +1,4 @@
-# AICTE CaseTrack (SIH26264)
+# EduVoice (SIH26264)
 **Integrated Dashboard for Monitoring and Tracking Institution-Related Complaint Cases Across AICTE Bureaus/Cells**
 
 Problem Statement ID: **SIH26264**  
@@ -16,7 +16,7 @@ AICTE receives grievances and regulatory complaints regarding technical educatio
 
 Previously, fragmented systems resulted in multiple cells handling overlapping cases for the same institution without real-time synchronization, causing redundant inspections, tracking gaps, and conflicting actions.
 
-**AICTE CaseTrack** provides an integrated single-window command dashboard that connects internal divisions, synchronously detects cross-bureau overlaps, enforces strict 5-stage case lifecycle rules, protects high-confidentiality whistleblower complaints, monitors SLA deadlines, and produces bureau/regional MIS reports.
+**EduVoice** provides an integrated single-window command dashboard that connects internal divisions, synchronously detects cross-bureau overlaps, enforces strict 5-stage case lifecycle rules, protects high-confidentiality whistleblower complaints, monitors SLA deadlines, and produces bureau/regional MIS reports.
 
 ---
 
