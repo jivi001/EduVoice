@@ -37,9 +37,25 @@ except Exception as _exc:
     _config_error = str(_exc)
 
 
+class PathPrefixMiddleware:
+    """Strips Vercel function rewrite prefixes like /api/index or /api/index.py from ASGI scope."""
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            path = scope.get("path", "")
+            for prefix in ("/api/index.py", "/api/index"):
+                if path.startswith(prefix):
+                    new_path = path[len(prefix):]
+                    scope["path"] = new_path if new_path.startswith("/") else "/" + new_path
+                    break
+        await self.app(scope, receive, send)
+
+
 class SecurityHeaders(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        if _config_error and request.url.path not in ("/health", "/docs", "/openapi.json"):
+        if _config_error and request.url.path not in ("/health", "/api/health", "/", "/docs", "/openapi.json"):
             return JSONResponse(
                 status_code=500,
                 content={
@@ -63,6 +79,7 @@ app = FastAPI(
     redoc_url=None,
     openapi_url=None if settings.is_production else "/openapi.json",
 )
+app.add_middleware(PathPrefixMiddleware)
 app.add_middleware(SecurityHeaders)
 app.add_middleware(
     CORSMiddleware,
@@ -91,7 +108,17 @@ for r in (
     app.include_router(r)
 
 
+@app.get("/")
+def root():
+    return {
+        "name": "EduVoice API (SIH26264)",
+        "status": "ok",
+        "health": "/health",
+    }
+
+
 @app.get("/health")
+@app.get("/api/health")
 def health():
     if _config_error:
         return JSONResponse(
