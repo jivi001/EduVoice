@@ -55,7 +55,15 @@ class PathPrefixMiddleware:
 
 class SecurityHeaders(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        if _config_error and request.url.path not in ("/health", "/api/health", "/", "/docs", "/openapi.json"):
+        if _config_error and request.url.path not in (
+            "/health",
+            "/api/health",
+            "/health/db",
+            "/api/health/db",
+            "/",
+            "/docs",
+            "/openapi.json",
+        ):
             return JSONResponse(
                 status_code=500,
                 content={
@@ -131,3 +139,23 @@ def health():
             },
         )
     return {"status": "ok"}
+
+
+@app.get("/health/db")
+@app.get("/api/health/db")
+def health_db():
+    from sqlalchemy import text
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return {"status": "ok", "db": "connected"}
+    except Exception as _e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "db_error",
+                "error": str(_e),
+                "url_scheme": settings.sqlalchemy_url.split("://")[0] if "://" in settings.sqlalchemy_url else "unknown",
+                "hint": "Check DATABASE_URL or POSTGRES_URL environment variable in Vercel settings.",
+            },
+        )
